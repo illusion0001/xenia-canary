@@ -59,8 +59,8 @@ DECLARE_bool(d3d12_clear_memory_page_state);
 DEFINE_bool(fullscreen, false, "Whether to launch the emulator in fullscreen.",
             "Display");
 
-DEFINE_bool(controller_hotkeys, true,
-            "Hotkeys for Xbox and PS controllers.", "General");
+DEFINE_bool(controller_hotkeys, false, "Hotkeys for Xbox and PS controllers.",
+            "General");
 
 DEFINE_string(
     postprocess_antialiasing, "",
@@ -850,7 +850,11 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
     } break;
 
     case ui::VirtualKey::kF2: {
-      ShowBuildCommit();
+      if (e.is_ctrl_pressed()) {
+        emulator()->ClearStickyPersistentFlags();
+      } else {
+        ShowBuildCommit();
+      }
     } break;
 
     case ui::VirtualKey::kF9: {
@@ -1147,8 +1151,10 @@ const std::map<int, EmulatorWindow::ControllerHotKey> controller_hotkey_map = {
          "A + Guide = Toggle Readback Resolve", true)},
     {X_INPUT_GAMEPAD_B | X_INPUT_GAMEPAD_GUIDE,
      EmulatorWindow::ControllerHotKey(
-         EmulatorWindow::ButtonFunctions::CloseWindow,
-         "B + Guide = Close Window")},
+         EmulatorWindow::ButtonFunctions::ToggleLogging,
+         "B + Guide = Toggle between loglevel set in config and the 'Disabled' "
+         "loglevel.",
+         true, true)},
     {X_INPUT_GAMEPAD_Y | X_INPUT_GAMEPAD_GUIDE,
      EmulatorWindow::ControllerHotKey(
          EmulatorWindow::ButtonFunctions::ToggleFullscreen,
@@ -1190,8 +1196,10 @@ const std::map<int, EmulatorWindow::ControllerHotKey> controller_hotkey_map = {
                                 "Start = Run Selected Title", false, false)},
     {X_INPUT_GAMEPAD_BACK | X_INPUT_GAMEPAD_START,
      EmulatorWindow::ControllerHotKey(
-         EmulatorWindow::ButtonFunctions::CloseWindow,
-         "Back + Start = Close Window", false, false)},
+         EmulatorWindow::ButtonFunctions::ToggleLogging,
+         "Back + Start = Toggle between loglevel set in config and the "
+         "'Disabled' loglevel.",
+         false, false)},
     {X_INPUT_GAMEPAD_DPAD_DOWN,
      EmulatorWindow::ControllerHotKey(
          EmulatorWindow::ButtonFunctions::IncTitleSelect,
@@ -1239,7 +1247,7 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
 
   switch (button_combination.function) {
     case ButtonFunctions::ToggleFullscreen:
-      ToggleFullscreen();
+      app_context().CallInUIThread([this]() { ToggleFullscreen(); });
 
       // Extra Sleep
       xe::threading::Sleep(delay);
@@ -1250,7 +1258,6 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
       app_context().CallInUIThread([this]() {
         RunTitle(recently_launched_titles_[selected_title_index].path_to_file);
       });
-
     } break;
     case ButtonFunctions::ClearMemoryPageState:
       ToggleGPUSetting(gpu_cvar::ClearMemoryPageState);
@@ -1296,16 +1303,17 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
     case ButtonFunctions::DecTitleSelect:
       selected_title_index--;
       break;
-    case ButtonFunctions::CloseWindow:
-      window_->RequestClose();
+    case ButtonFunctions::ToggleLogging:
+      logging::internal::ToggleLogLevel();
       break;
     case ButtonFunctions::Unknown:
     default:
       break;
   }
 
-  if (button_combination.function == ButtonFunctions::IncTitleSelect ||
-      button_combination.function == ButtonFunctions::DecTitleSelect) {
+  if ((button_combination.function == ButtonFunctions::IncTitleSelect ||
+       button_combination.function == ButtonFunctions::DecTitleSelect) &&
+      recently_launched_titles_.size() > 0) {
     selected_title_index = std::clamp(
         selected_title_index, 0, (int)recently_launched_titles_.size() - 1);
 
@@ -1314,10 +1322,20 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
 
     // Titles may contain Unicode characters such as At World’s End
     // Must use ImGUI font that can render these Unicode characters
-    std::string title =
-        std::to_string(selected_title_index + 1) + ": " +
-        recently_launched_titles_[selected_title_index].title_name + "\n\n" +
-        controller_hotkey_map.find(X_INPUT_GAMEPAD_START)->second.pretty;
+    std::string title_name;
+
+    // Use filename if title name is empty
+    if (recently_launched_titles_[selected_title_index].title_name.empty()) {
+      title_name = recently_launched_titles_[selected_title_index]
+                       .path_to_file.filename()
+                       .string();
+    } else {
+      title_name = recently_launched_titles_[selected_title_index].title_name;
+    }
+
+    std::string title = fmt::format(
+        "{}: {}\n\n{}", selected_title_index + 1, title_name,
+        controller_hotkey_map.find(X_INPUT_GAMEPAD_START)->second.pretty);
 
     xe::ui::ImGuiDialog::ShowMessageBox(imgui_drawer_.get(), "Title Selection",
                                         title);
@@ -1582,6 +1600,10 @@ void EmulatorWindow::LoadRecentlyLaunchedTitles() {
 
 void EmulatorWindow::AddRecentlyLaunchedTitle(
     std::filesystem::path path_to_file, std::string title_name) {
+  if (cvars::recent_titles_entry_amount <= 0) {
+    return;
+  }
+
   // Check if game is already on list and pop it to front
   auto entry_index = std::find_if(recently_launched_titles_.cbegin(),
                                   recently_launched_titles_.cend(),
