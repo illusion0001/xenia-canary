@@ -102,16 +102,16 @@ class ConfirmationBoxDialog final : public ImGuiDialog {
           "##body", text, body_.size(), ImVec2(600, 0),
           ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
       if (ImGui::Button("Yes")) {
-        *status = 1;
+        *status = Button_Yes;
         ImGui::CloseCurrentPopup();
         Close();
       }
       ImGui::EndPopup();
     } else if (ImGui::Button("No")) {
-      *status = 0;
+      *status = Button_No;
       Close();
     } else if (ImGui::Button("Cancel")) {
-      *status = 2;
+      *status = Button_Cancel;
       Close();
     }
   }

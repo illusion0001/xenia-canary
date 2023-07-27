@@ -22,7 +22,11 @@ namespace ui {
 class ImGuiDialog {
  public:
   ~ImGuiDialog();
-
+  enum ButtonChoice {
+    Button_No = 0,
+    Button_Yes = 1,
+    Button_Cancel = 2,
+  };
   // Shows a simple message box containing a text message.
   // Callers can want for the dialog to close with Wait().
   // Dialogs retain themselves and will delete themselves when closed.
