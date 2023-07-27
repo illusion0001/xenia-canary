@@ -29,6 +29,9 @@ class ImGuiDialog {
   static ImGuiDialog* ShowMessageBox(ImGuiDrawer* imgui_drawer,
                                      std::string title, std::string body);
 
+  static ImGuiDialog* ShowConfirmationBox(ImGuiDrawer* imgui_drawer,
+                                     std::string title, std::string body, uint32_t** status);
+
   // A fence to signal when the dialog is closed.
   void Then(xe::threading::Fence* fence);
 

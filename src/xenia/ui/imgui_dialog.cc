@@ -82,9 +82,54 @@ class MessageBoxDialog final : public ImGuiDialog {
   std::string body_;
 };
 
+class ConfirmationBoxDialog final : public ImGuiDialog {
+ public:
+  ConfirmationBoxDialog(ImGuiDrawer* imgui_drawer, std::string title,
+                   std::string body, uint32_t** status)
+      : ImGuiDialog(imgui_drawer),
+        title_(std::move(title)),
+        body_(std::move(body)) {}
+
+  void OnDraw(ImGuiIO& io) override {
+    if (!has_opened_) {
+      ImGui::OpenPopup(title_.c_str());
+      has_opened_ = true;
+    }
+    if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+      char* text = const_cast<char*>(body_.c_str());
+      ImGui::InputTextMultiline(
+          "##body", text, body_.size(), ImVec2(600, 0),
+          ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
+      if (ImGui::Button("Yes")) {
+        *status = 1;
+        ImGui::CloseCurrentPopup();
+        Close();
+      }
+      ImGui::EndPopup();
+    } else if (ImGui::Button("No")) {
+      *status = 0;
+      Close();
+    } else if (ImGui::Button("Cancel")) {
+      *status = 2;
+      Close();
+    }
+  }
+
+ private:
+  bool has_opened_ = false;
+  std::string title_;
+  std::string body_;
+};
+
 ImGuiDialog* ImGuiDialog::ShowMessageBox(ImGuiDrawer* imgui_drawer,
                                          std::string title, std::string body) {
   return new MessageBoxDialog(imgui_drawer, std::move(title), std::move(body));
+}
+
+  static ImGuiDialog* ShowConfirmationBox(ImGuiDrawer* imgui_drawer,
+                                     std::string title, std::string body, uint32_t** status) {
+  return new ConfirmationBoxDialog(imgui_drawer, std::move(title), std::move(body), status);
 }
 
 }  // namespace ui

@@ -114,15 +114,15 @@ Emulator::Emulator(const std::filesystem::path& command_line,
   // show the quickstart guide the first time they ever open the emulator
   uint64_t persistent_flags = GetPersistentEmulatorFlags();
   if (!(persistent_flags & EmulatorFlagQuickstartShown)) {
-#if XE_PLATFORM_WIN32 == 1
-  if (MessageBoxW(nullptr, L"Xenia does not support or condone piracy in anyway shape or form\nDo you want to open the quickstart guide?", L"Xenia", MB_YESNO | MB_ICONQUESTION) == IDYES) {
-#endif
-    LaunchWebBrowser(
-        "https://github.com/xenia-canary/xenia-canary/wiki/Quickstart#how-to-rip-games");
-    SetPersistentEmulatorFlags(persistent_flags | EmulatorFlagQuickstartShown);
-#if XE_PLATFORM_WIN32 == 1
+    if (imgui_drawer_) {
+      uint32_t button_status = 0;
+      xe::ui::ImGuiDialog::ShowConfirmationBox(imgui_drawer_.get(), "Xenia does not support or condone piracy in anyway shape or form\nDo you want to open the quickstart guide?", "Confirmation", &button_status);
+      if (button_status == 1) {
+        LaunchWebBrowser(
+            "https://github.com/xenia-canary/xenia-canary/wiki/Quickstart#how-to-rip-games");
+        SetPersistentEmulatorFlags(persistent_flags | EmulatorFlagQuickstartShown);
+      }
     }
-#endif
   }
 }
 
